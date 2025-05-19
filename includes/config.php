@@ -12,7 +12,7 @@ if (!defined('DB_PORT')) define('DB_PORT', getenv('PGPORT'));
 if (!defined('DB_USER')) define('DB_USER', 'your_db_user');
 if (!defined('DB_PASS')) define('DB_PASS', 'your_db_pass');
 if (!defined('DB_NAME')) define('DB_NAME', 'your_db_name');
-define('DB_TYPE', 'postgresql'); // Using PostgreSQL instead of MySQL
+define('DB_TYPE', 'mysql'); // Using PostgreSQL instead of MySQL
 
 // Application paths
 define('BASE_URL', 'http://' . $_SERVER['HTTP_HOST'] . '/');

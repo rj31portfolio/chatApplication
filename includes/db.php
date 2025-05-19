@@ -8,27 +8,20 @@ require_once __DIR__ . '/config.php';
 /**
  * Get database connection
  * 
- * @return resource PostgreSQL database connection
+ * @return mysqli Database connection
  */
 function getDbConnection() {
     static $conn;
     
     if (!$conn) {
-        $connection_string = sprintf(
-            "host=%s port=%s dbname=%s user=%s password=%s",
-            DB_HOST,
-            DB_PORT,
-            DB_NAME,
-            DB_USER,
-            DB_PASS
-        );
+        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
         
-        $conn = pg_connect($connection_string);
-        
-        if (!$conn) {
-            error_log("Database connection failed: " . pg_last_error());
+        if ($conn->connect_error) {
+            error_log("Database connection failed: " . $conn->connect_error);
             die("Database connection failed. Please try again later.");
         }
+        
+        $conn->set_charset("utf8mb4");
     }
     
     return $conn;
@@ -39,27 +32,27 @@ function getDbConnection() {
  * 
  * @param string $sql SQL query
  * @param array $params Parameters for prepared statement
- * @return resource|false PostgreSQL query result
+ * @param string $types Types of parameters (i:int, d:double, s:string, b:blob)
+ * @return mysqli_stmt|false Prepared statement
  */
-function dbQuery($sql, $params = []) {
+function dbQuery($sql, $params = [], $types = null) {
     $conn = getDbConnection();
+    $stmt = $conn->prepare($sql);
     
-    // Replace MySQL placeholders (?) with PostgreSQL placeholders ($1, $2, etc.)
-    if (!empty($params)) {
-        $index = 1;
-        $sql = preg_replace_callback('/\?/', function($matches) use (&$index) {
-            return '$' . $index++;
-        }, $sql);
-    }
-    
-    $result = pg_query_params($conn, $sql, $params);
-    
-    if (!$result) {
-        error_log("Query execution failed: " . pg_last_error($conn) . " SQL: " . $sql);
+    if (!$stmt) {
+        error_log("Query preparation failed: " . $conn->error . " SQL: " . $sql);
         return false;
     }
     
-    return $result;
+    if (!empty($params)) {
+        if ($types === null) {
+            $types = str_repeat('s', count($params));
+        }
+        
+        $stmt->bind_param($types, ...$params);
+    }
+    
+    return $stmt;
 }
 
 /**
@@ -67,21 +60,26 @@ function dbQuery($sql, $params = []) {
  * 
  * @param string $sql SQL query
  * @param array $params Parameters for prepared statement
+ * @param string $types Types of parameters
  * @return array|false Results array or false on failure
  */
-function dbSelect($sql, $params = []) {
-    $result = dbQuery($sql, $params);
+function dbSelect($sql, $params = [], $types = null) {
+    $stmt = dbQuery($sql, $params, $types);
     
-    if (!$result) {
+    if (!$stmt) {
         return false;
     }
     
-    $data = [];
-    while ($row = pg_fetch_assoc($result)) {
-        $data[] = $row;
+    if (!$stmt->execute()) {
+        error_log("Query execution failed: " . $stmt->error);
+        $stmt->close();
+        return false;
     }
     
-    pg_free_result($result);
+    $result = $stmt->get_result();
+    $data = $result->fetch_all(MYSQLI_ASSOC);
+    
+    $stmt->close();
     return $data;
 }
 
@@ -90,44 +88,33 @@ function dbSelect($sql, $params = []) {
  * 
  * @param string $sql SQL query
  * @param array $params Parameters for prepared statement
+ * @param string $types Types of parameters
  * @return bool|int Affected rows or insert ID, or false on failure
  */
-function dbExecute($sql, $params = []) {
-    $conn = getDbConnection();
+function dbExecute($sql, $params = [], $types = null) {
+    $stmt = dbQuery($sql, $params, $types);
     
-    // Replace MySQL placeholders (?) with PostgreSQL placeholders ($1, $2, etc.)
-    if (!empty($params)) {
-        $index = 1;
-        $sql = preg_replace_callback('/\?/', function($matches) use (&$index) {
-            return '$' . $index++;
-        }, $sql);
-    }
-    
-    // For INSERTs, append RETURNING id to get the insert ID
-    $isInsert = (strpos(strtoupper($sql), 'INSERT') === 0);
-    if ($isInsert && stripos($sql, 'RETURNING') === false) {
-        $sql .= ' RETURNING id';
-    }
-    
-    $result = pg_query_params($conn, $sql, $params);
-    
-    if (!$result) {
-        error_log("Query execution failed: " . pg_last_error($conn) . " SQL: " . $sql);
+    if (!$stmt) {
         return false;
     }
     
-    // If it was an INSERT, return the insert ID
-    if ($isInsert) {
-        $row = pg_fetch_row($result);
-        $insertId = $row[0];
-        pg_free_result($result);
-        return $insertId;
-    } else {
-        // For UPDATE or DELETE, return affected rows
-        $affectedRows = pg_affected_rows($result);
-        pg_free_result($result);
-        return $affectedRows;
+    if (!$stmt->execute()) {
+        error_log("Query execution failed: " . $stmt->error);
+        $stmt->close();
+        return false;
     }
+    
+    $result = ($stmt->affected_rows > 0);
+    
+    // If it was an INSERT, return the insert ID
+    if (strpos(strtoupper($sql), 'INSERT') === 0) {
+        $result = $stmt->insert_id;
+    } else {
+        $result = $stmt->affected_rows;
+    }
+    
+    $stmt->close();
+    return $result;
 }
 
 /**
