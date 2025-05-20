@@ -7,11 +7,11 @@
 session_start();
 
 // Database configuration
-if (!defined('DB_HOST')) define('DB_HOST', 'your_db_host');
-if (!defined('DB_PORT')) define('DB_PORT', getenv('PGPORT'));
-if (!defined('DB_USER')) define('DB_USER', 'your_db_user');
-if (!defined('DB_PASS')) define('DB_PASS', 'your_db_pass');
-if (!defined('DB_NAME')) define('DB_NAME', 'your_db_name');
+if (!defined('DB_HOST')) define('DB_HOST', '127.0.0.1');
+if (!defined('DB_PORT')) define('DB_PORT', getenv('3306'));
+if (!defined('DB_USER')) define('DB_USER', 'root');
+if (!defined('DB_PASS')) define('DB_PASS', '');
+if (!defined('DB_NAME')) define('DB_NAME', 'ai_chatbot');
 define('DB_TYPE', 'mysql'); // Using PostgreSQL instead of MySQL
 
 // Application paths

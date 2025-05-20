@@ -6,43 +6,65 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
 
-// Require super admin privileges
+// Ensure required functions exist
+if (!function_exists('requireSuperAdmin')) {
+    die('Missing function: requireSuperAdmin');
+}
 requireSuperAdmin();
 
-// Get dashboard statistics
-$totalBusinesses = dbGetValue("SELECT COUNT(*) FROM businesses");
-$activeChats = dbGetValue("
-    SELECT COUNT(*) FROM chat_sessions 
-    WHERE ended_at IS NULL AND started_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
-");
-$totalMessages = dbGetValue("SELECT COUNT(*) FROM messages");
-$newBusinesses = dbGetValue("
-    SELECT COUNT(*) FROM businesses 
-    WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-");
+// Fallback if BUSINESS_TYPES is not defined
+if (!defined('BUSINESS_TYPES')) {
+    define('BUSINESS_TYPES', []);
+}
 
-// Get business type distribution
-$businessTypes = dbSelect("
-    SELECT business_type, COUNT(*) as count 
-    FROM businesses 
-    GROUP BY business_type
-    ORDER BY count DESC
-");
+// Fallback for escaping helper
+if (!function_exists('h')) {
+    function h($string) {
+        return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
+    }
+}
 
-// Get recent businesses
-$recentBusinesses = dbSelect("
-    SELECT b.id, b.name, b.business_type, b.created_at, u.username as admin
-    FROM businesses b
-    LEFT JOIN users u ON b.admin_id = u.id
-    ORDER BY b.created_at DESC
-    LIMIT 5
-");
+// Fallback for date formatting
+if (!function_exists('formatDateTime')) {
+    function formatDateTime($datetime) {
+        return date('Y-m-d H:i', strtotime($datetime));
+    }
+}
+
+try {
+    $totalBusinesses = dbGetValue("SELECT COUNT(*) FROM businesses");
+    $activeChats = dbGetValue("
+        SELECT COUNT(*) FROM chat_sessions 
+        WHERE ended_at IS NULL AND started_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    ");
+    $totalMessages = dbGetValue("SELECT COUNT(*) FROM messages");
+    $newBusinesses = dbGetValue("
+        SELECT COUNT(*) FROM businesses 
+        WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+    ");
+
+    $businessTypes = dbSelect("
+        SELECT business_type, COUNT(*) as count 
+        FROM businesses 
+        GROUP BY business_type
+        ORDER BY count DESC
+    ");
+
+    $recentBusinesses = dbSelect("
+        SELECT b.id, b.name, b.business_type, b.created_at, u.username as admin
+        FROM businesses b
+        LEFT JOIN users u ON b.admin_id = u.id
+        ORDER BY b.created_at DESC
+        LIMIT 5
+    ");
+} catch (Exception $e) {
+    die("Dashboard Error: " . h($e->getMessage()));
+}
 
 $pageTitle = 'Super Admin Dashboard';
 $extraJS = '<script src="' . BASE_URL . 'assets/js/super-admin.js"></script>';
@@ -50,48 +72,29 @@ $extraJS = '<script src="' . BASE_URL . 'assets/js/super-admin.js"></script>';
 
 <?php include __DIR__ . '/../includes/templates/header.php'; ?>
 
+<!-- Dashboard Content -->
 <div id="alerts-container"></div>
 
 <div class="row">
-    <div class="col-12 col-md-6 col-lg-3 mb-4">
-        <div class="card stats-card">
-            <div class="stats-icon text-primary">
-                <i class="fas fa-building"></i>
+    <?php
+    $stats = [
+        ['Total Businesses', $totalBusinesses, 'building', 'text-primary'],
+        ['Active Chats (24h)', $activeChats, 'comments', 'text-success'],
+        ['Total Messages', $totalMessages, 'envelope', 'text-info'],
+        ['New Businesses (7d)', $newBusinesses, 'plus-circle', 'text-warning'],
+    ];
+    foreach ($stats as [$label, $value, $icon, $color]):
+    ?>
+        <div class="col-12 col-md-6 col-lg-3 mb-4">
+            <div class="card stats-card">
+                <div class="stats-icon <?php echo $color; ?>">
+                    <i class="fas fa-<?php echo $icon; ?>"></i>
+                </div>
+                <div class="stats-value"><?php echo h($value); ?></div>
+                <div class="stats-label"><?php echo h($label); ?></div>
             </div>
-            <div class="stats-value"><?php echo h($totalBusinesses); ?></div>
-            <div class="stats-label">Total Businesses</div>
         </div>
-    </div>
-    
-    <div class="col-12 col-md-6 col-lg-3 mb-4">
-        <div class="card stats-card">
-            <div class="stats-icon text-success">
-                <i class="fas fa-comments"></i>
-            </div>
-            <div class="stats-value"><?php echo h($activeChats); ?></div>
-            <div class="stats-label">Active Chats (24h)</div>
-        </div>
-    </div>
-    
-    <div class="col-12 col-md-6 col-lg-3 mb-4">
-        <div class="card stats-card">
-            <div class="stats-icon text-info">
-                <i class="fas fa-envelope"></i>
-            </div>
-            <div class="stats-value"><?php echo h($totalMessages); ?></div>
-            <div class="stats-label">Total Messages</div>
-        </div>
-    </div>
-    
-    <div class="col-12 col-md-6 col-lg-3 mb-4">
-        <div class="card stats-card">
-            <div class="stats-icon text-warning">
-                <i class="fas fa-plus-circle"></i>
-            </div>
-            <div class="stats-value"><?php echo h($newBusinesses); ?></div>
-            <div class="stats-label">New Businesses (7d)</div>
-        </div>
-    </div>
+    <?php endforeach; ?>
 </div>
 
 <div class="row">
