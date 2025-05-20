@@ -8,7 +8,7 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/helpers.php';
 
 // Demo mode - hardcoded credentials for demonstration
-$demo_users = [
+ $demo_users = [
     'admin' => [
         'password' => 'admin123',
         'role' => 'super_admin',
@@ -19,7 +19,7 @@ $demo_users = [
         'role' => 'admin',
         'email' => 'business@example.com'
     ]
-];
+]; 
 
 // Process logout
 if (isset($_GET['logout'])) {
