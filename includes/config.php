@@ -15,7 +15,7 @@ if (!defined('DB_NAME')) define('DB_NAME', 'your_db_name');
 define('DB_TYPE', 'mysql'); // Using PostgreSQL instead of MySQL
 
 // Application paths
-define('BASE_URL', 'http://' . $_SERVER['HTTP_HOST'] . '/');
+define('BASE_URL', 'http://localhost/chatbot/');
 define('API_URL', BASE_URL . 'api/');
 
 // Chatbot configuration
